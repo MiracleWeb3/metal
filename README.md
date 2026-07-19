@@ -16,7 +16,7 @@
 
 <br>
 
-<a href="#rule-1">Rule&nbsp;1</a> &nbsp;·&nbsp; <a href="#rule-2">Rule&nbsp;2</a> &nbsp;·&nbsp; <a href="#install">Install</a> &nbsp;·&nbsp; <a href="#configure">Configure</a> &nbsp;·&nbsp; <a href="#how">How&nbsp;it&nbsp;works</a> &nbsp;·&nbsp; <a href="#why">Why</a>
+<a href="#rule-1--no-large-files">Rule&nbsp;1</a> &nbsp;·&nbsp; <a href="#rule-2--low-level-by-default">Rule&nbsp;2</a> &nbsp;·&nbsp; <a href="#install">Install</a> &nbsp;·&nbsp; <a href="#configure">Configure</a> &nbsp;·&nbsp; <a href="#how-it-works">How&nbsp;it&nbsp;works</a> &nbsp;·&nbsp; <a href="#why-low-level">Why</a>
 
 <br>
 
@@ -46,8 +46,6 @@ $ # the model attempts to write a 401-line file
 The file is never created. There is nothing to negotiate with.
 
 <br>
-
-<a name="rule-1"></a>
 
 ## Rule 1 &nbsp;·&nbsp; No large files
 
@@ -80,8 +78,6 @@ It also stays out of the way of things that aren't source: `.md`, `.json`, data 
 
 <br>
 
-<a name="rule-2"></a>
-
 ## Rule 2 &nbsp;·&nbsp; Low-level by default
 
 New code starts at the lowest level that fits the problem.
@@ -99,8 +95,6 @@ This rule cannot be hooked — language choice happens before any tool call exis
 It does **not** rewrite your existing codebases. It proposes the low-level lane where the pain is actually determinism — parsers, protocols, state machines, concurrency, hot paths — and otherwise leaves them alone.
 
 <br>
-
-<a name="install"></a>
 
 ## Install
 
@@ -120,8 +114,6 @@ git clone https://github.com/MiracleWeb3/metal ~/.claude/skills/metal
 
 <br>
 
-<a name="configure"></a>
-
 ## Configure
 
 One number, one place:
@@ -134,8 +126,6 @@ LIMIT = 300   # keep in sync with SKILL.md
 Language preference order lives in `SKILL.md` under *Low-level by default*. Both files are meant to be edited — the whole plugin reads in under two minutes.
 
 <br>
-
-<a name="how"></a>
 
 ## How it works
 
@@ -162,8 +152,6 @@ Language preference order lives in `SKILL.md` under *Low-level by default*. Both
 | `SubagentStart` | every delegated agent | Injects both rules, so subagents inherit them |
 
 <br>
-
-<a name="why"></a>
 
 ## Why low-level
 
