@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "metal",
+  "description": "Small files, low-level languages. Two rules, one enforced by hook.",
+  "owner": {
+    "name": "MiracleWeb3",
+    "url": "https://github.com/MiracleWeb3"
+  },
+  "plugins": [
+    {
+      "name": "metal",
+      "description": "Denies any source file over 300 lines at write time, and defaults every new project to Rust/C instead of a high-level runtime.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+name: test
+
+on: [push, pull_request]
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 hooks/split.py --selftest
+      - name: manifests parse
+        run: python3 -c "import json;[json.load(open(p)) for p in ['.claude-plugin/plugin.json','.claude-plugin/marketplace.json','hooks/hooks.json']]"
+      - name: hooks obey their own rule
+        run: test "$(wc -l < hooks/split.py)" -le 300

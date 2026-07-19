@@ -1,0 +1,12 @@
+{
+  "name": "metal",
+  "version": "0.1.0",
+  "description": "Small files, low-level languages. Denies any source file over 300 lines at write time, and defaults every new project to Rust/C instead of a high-level runtime.",
+  "author": {
+    "name": "MiracleWeb3",
+    "url": "https://github.com/MiracleWeb3"
+  },
+  "homepage": "https://github.com/MiracleWeb3/metal",
+  "license": "MIT",
+  "keywords": ["rust", "c", "low-level", "determinism", "file-size", "architecture"]
+}
