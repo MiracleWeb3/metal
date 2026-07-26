@@ -49,7 +49,7 @@ The file is never created. There is nothing to negotiate with.
 
 ## Rule 1 &nbsp;·&nbsp; No large files
 
-**300 lines. Hard limit.**
+**300 lines. Hard limit. 220 lines, advisory.**
 
 ```
   before                          after
@@ -121,6 +121,7 @@ One number, one place:
 ```python
 # hooks/split.py
 LIMIT = 300   # keep in sync with SKILL.md
+WARN  = 220   # advisory; fires on ~8% of real files, all with runway left
 ```
 
 Language preference order lives in `SKILL.md` under *Low-level by default*. Both files are meant to be edited — the whole plugin reads in under two minutes.
