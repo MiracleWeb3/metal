@@ -182,7 +182,9 @@ The port from Python was checked differentially rather than by eye: 1,180 inputs
 .claude-plugin/marketplace.json   so others can install it
 SKILL.md                          both rules, injected every session
 hooks/hooks.json                  wiring
-hooks/split.cpp                    the enforcer — 80 lines
+hooks/split.cpp                   the enforcer — 240 lines
+hooks/hookjson.hpp                enough JSON to read one hook event
+hooks/selftest.inc                assertions, compiled in only for the selftest
 assets/                           hero, dark and light
 ```
 
