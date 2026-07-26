@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "metal",
-      "description": "Denies any source file over 300 lines at write time, and defaults every new project to Rust/C instead of a high-level runtime.",
+      "description": "Denies any source file over 300 lines at write time, warns at 220 while there is still room to split well, and defaults every new project to C++ instead of a high-level runtime.",
       "source": "./",
       "category": "productivity"
     }

@@ -38,7 +38,7 @@ $ # the model attempts to write a 401-line file
 
      parser.rs is 401 lines; the limit is 300. Split it now, before anything
      else. Make a directory named after the file, give each concern its own
-     file, re-export from one entry point (Rust mod.rs, C header, TS index).
+     file, re-export from one entry point (C++ header, C header, TS index).
      Cut along seams that already exist — parse/emit/state/io — not at an
      arbitrary line.
 ```
@@ -84,11 +84,13 @@ New code starts at the lowest level that fits the problem.
 
 | | Language | When |
 |:--|:--|:--|
-| **1** | **Rust** | The default. No GC, errors are values, the compiler rejects at build time what would otherwise be a runtime surprise. |
+| **1** | **C++** | The default, for essentially all code. No GC, no runtime between the code and the machine, and the mature library for nearly any domain is already C++. Modern C++ only: RAII, `span`/`string_view`, no raw `new`/`delete`. |
 | **2** | **C** | Freestanding, embedded, tiny binaries, a stable ABI, or existing C to interop with. |
-| **3** | **C++** | Only when a mandatory dependency is C++. |
-| **4** | **Assembly** | Only for a hot path measured hot. |
-| **5** | **Go / Zig** | Only for a library that exists nowhere else. |
+| **3** | **Assembly** | Only for a hot path measured hot. |
+
+**There is no rung four.** Not Rust, not Go, not Zig, not Python, not TypeScript. "Safer in general", "better tooling", "the ecosystem is over there" are preferences, not reasons, and they lose. A library written elsewhere gets *linked* through its C ABI, never rewritten and never joined — writing C++ and linking a `.so` is still C++ only.
+
+Two narrow escapes: one-shot glue that never enters the repo, and a platform that physically forbids native code (a browser, a UI shell). Keep that layer thin and push every real decision into a C++ core behind it. Neither is a licence to start a second codebase.
 
 This rule cannot be hooked — language choice happens before any tool call exists to intercept. So `SKILL.md` is injected at every `SessionStart` **and** every `SubagentStart`, which means it survives context compaction and reaches delegated subagents that would otherwise reach for Python out of habit.
 
@@ -116,12 +118,20 @@ git clone https://github.com/MiracleWeb3/metal ~/.claude/skills/metal
 
 ## Configure
 
-One number, one place:
+Four numbers, one place:
 
-```python
-# hooks/split.cpp
-LIMIT = 300   # keep in sync with SKILL.md
-WARN  = 220   # advisory; fires on ~8% of real files, all with runway left
+```cpp
+// hooks/split.cpp
+constexpr int kLimit = 300;             // keep in sync with SKILL.md
+constexpr int kWarn = 220;              // advisory; ~8% of real files, all with runway left
+constexpr int kMaxOverride = 600;       // an exception that can name any size is a repeal
+constexpr std::size_t kMinReason = 20;  // "because" is not a reason
+```
+
+A file that genuinely does not split can say so, in itself, with a reason:
+
+```cpp
+// metal: allow 380 - one lexer state machine, the transition table does not split
 ```
 
 Language preference order lives in `SKILL.md` under *Low-level by default*. Both files are meant to be edited — the whole plugin reads in under two minutes.
@@ -147,9 +157,9 @@ Language preference order lives in `SKILL.md` under *Low-level by default*. Both
 
 | Event | Fires on | Outcome |
 |:--|:--|:--|
-| `PreToolUse` | `Write` | **Denies** the call outright — the oversized file is never created |
+| `PreToolUse` | `Write` | **Denies** over the limit — the oversized file is never created. In the warn band it **allows** and says how much room is left |
 | `PostToolUse` | `Write` `Edit` | **Warns** via `additionalContext` — the edit lands, the model is told to split |
-| `SessionStart` | startup · resume · clear · compact | Injects both rules, so they survive compaction |
+| `SessionStart` | startup · resume · clear · compact | Injects both rules, and compiles the hook if the binary is missing or stale |
 | `SubagentStart` | every delegated agent | Injects both rules, so subagents inherit them |
 
 <br>
