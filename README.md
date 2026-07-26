@@ -41,6 +41,8 @@ $ # the model attempts to write a 401-line file
      file, re-export from one entry point (C++ header, C header, TS index).
      Cut along seams that already exist — parse/emit/state/io — not at an
      arbitrary line.
+     If this file genuinely does not split, say so in it and why:
+       // metal: allow 441 - <what makes it one unit>
 ```
 
 The file is never created. There is nothing to negotiate with.
@@ -133,6 +135,9 @@ git clone https://github.com/MiracleWeb3/metal ~/.claude/skills/metal
 
 > [!NOTE]
 > Hooks are read once, at session start. Restart Claude Code after installing or the rules stay dormant.
+
+> [!IMPORTANT]
+> Needs a C++20 compiler on `PATH` (`c++`, i.e. g++ or clang++). The hook is a small binary compiled once at `SessionStart` into `${XDG_CACHE_HOME:-~/.cache}/metal/`, and rebuilt whenever the source is newer. With no compiler the hook stays silent and metal does nothing — it says so once at startup rather than failing quietly. Every failure path exits 0: a broken hook must never take your edit with it.
 
 <br>
 
@@ -235,6 +240,10 @@ assets/                           hero, dark and light
 **Why the refusal is verbose.** A bare rejection produces a worse split than no split at all: the model cuts at line 300 and leaves two halves that both make no sense. The message carries the method — name the seams, name the shape, name the test — because the split is the part that has to be right.
 
 **Why 300.** It's arbitrary, and it's supposed to be. It sits just past the point where a file stops fitting in one screen and one head. Change it.
+
+**Why 220 is not arbitrary.** It was measured. Across 109 authored C/C++ files the distribution ran median 78, p75 140, p90 202 — and then max 299, with nothing above it. That ceiling is not where good files naturally land; it is where files get squeezed, and the pile-up at 289/296/299 is the fingerprint. 220 is the point that catches those while ~8% of files are still short enough to have a seam worth finding.
+
+**Why the override is bounded.** An exception that can name any number is a repeal with extra steps. Capping it at 600 and demanding a real sentence means using it costs more than splitting would in every case except the one it exists for.
 
 </details>
 
