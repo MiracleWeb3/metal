@@ -8,5 +8,5 @@
   },
   "homepage": "https://github.com/MiracleWeb3/metal",
   "license": "MIT",
-  "keywords": ["rust", "c", "low-level", "determinism", "file-size", "architecture"]
+  "keywords": ["cpp", "c", "low-level", "determinism", "file-size", "architecture"]
 }

@@ -153,7 +153,7 @@ std::string advice(std::string_view path, int n) {
     return basename_of(path) + " is " + std::to_string(n) + " lines; the limit is " +
            std::to_string(kLimit) +
            ". Split it now, before anything else.\nMake a directory named after the file, give "
-           "each concern its own file, re-export from one entry point (Rust mod.rs, C header, TS "
+           "each concern its own file, re-export from one entry point (C++ header, C header, TS "
            "index). Cut along seams that already exist - parse/emit/state/io - not at an arbitrary "
            "line.\nIf this file genuinely does not split, say so in it and why:\n  // metal: allow " +
            std::to_string(suggest) + " - <what makes it one unit>";
