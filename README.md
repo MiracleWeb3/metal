@@ -119,7 +119,7 @@ git clone https://github.com/MiracleWeb3/metal ~/.claude/skills/metal
 One number, one place:
 
 ```python
-# hooks/split.py
+# hooks/split.cpp
 LIMIT = 300   # keep in sync with SKILL.md
 WARN  = 220   # advisory; fires on ~8% of real files, all with runway left
 ```
@@ -158,17 +158,19 @@ Language preference order lives in `SKILL.md` under *Low-level by default*. Both
 
 A deterministic language pins down what the machine actually does. High-level runtimes hide GC pauses, dynamic dispatch, implicit allocation and silent coercion — exactly the invisible state that makes a *generated* program unpredictable.
 
-The counterintuitive part: prompting into a low-level language buys **more** control over the result than prompting into a high-level one, even though the code is harder to write by hand. Difficulty of authorship stops being the deciding cost when you are not the one typing. What is left is how much of the machine's behavior the source actually specifies — and there, C and Rust specify far more of it than Python does.
+The counterintuitive part: prompting into a low-level language buys **more** control over the result than prompting into a high-level one, even though the code is harder to write by hand. Difficulty of authorship stops being the deciding cost when you are not the one typing. What is left is how much of the machine's behavior the source actually specifies — and there, C and C++ specify far more of it than Python does. This hook is itself the argument: it used to be Python, and a skill that mandates C++ has no business being enforced by an interpreter.
 
 <br>
 
 ## Test
 
 ```
-python3 hooks/split.py --selftest
+c++ -std=c++20 -O2 -DMETAL_SELFTEST -o /tmp/split hooks/split.cpp && /tmp/split --selftest
 ```
 
-No framework, no fixtures. Eight assertions covering both hook branches, the extension filter, skipped build directories, and the missing-file path. CI runs it on every push, and checks that `split.py` obeys its own 300-line rule.
+No framework, no fixtures. Nineteen assertions covering both hook branches, the warn band, the override and its bounds, the extension filter, skipped build directories, and garbage input. The test code compiles in only under `-DMETAL_SELFTEST`, so the hook that runs on every Write carries none of it.
+
+The port from Python was checked differentially rather than by eye: 1,180 inputs — 500 real source files plus every threshold, marker variant, and reordered-key case — run through both implementations, compared as parsed JSON. Zero semantic mismatches. CI builds on Linux and macOS with `-Wall -Wextra -Werror`, asserts the hook stays silent on malformed input, and checks that every hook file obeys its own 300-line rule.
 
 <details>
 <summary><b>Layout</b></summary>
@@ -180,7 +182,7 @@ No framework, no fixtures. Eight assertions covering both hook branches, the ext
 .claude-plugin/marketplace.json   so others can install it
 SKILL.md                          both rules, injected every session
 hooks/hooks.json                  wiring
-hooks/split.py                    the enforcer — 80 lines
+hooks/split.cpp                    the enforcer — 80 lines
 assets/                           hero, dark and light
 ```
 
