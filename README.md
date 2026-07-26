@@ -16,7 +16,7 @@
 
 <br>
 
-<a href="#rule-1--no-large-files">Rule&nbsp;1</a> &nbsp;·&nbsp; <a href="#rule-2--low-level-by-default">Rule&nbsp;2</a> &nbsp;·&nbsp; <a href="#install">Install</a> &nbsp;·&nbsp; <a href="#configure">Configure</a> &nbsp;·&nbsp; <a href="#how-it-works">How&nbsp;it&nbsp;works</a> &nbsp;·&nbsp; <a href="#why-low-level">Why</a>
+<a href="#why-low-level">Why</a> &nbsp;·&nbsp; <a href="#rule-1--no-large-files">Rule&nbsp;1</a> &nbsp;·&nbsp; <a href="#rule-2--low-level-by-default">Rule&nbsp;2</a> &nbsp;·&nbsp; <a href="#install">Install</a> &nbsp;·&nbsp; <a href="#configure">Configure</a> &nbsp;·&nbsp; <a href="#how-it-works">How&nbsp;it&nbsp;works</a>
 
 <br>
 
@@ -34,9 +34,9 @@ Every "keep files small" convention dies the same way: it lives in a style guide
 ```console
 $ # the model attempts to write a 401-line file
 
-  ✗  Write  src/parser.rs   401 lines
+  ✗  Write  src/parser.cpp   401 lines
 
-     parser.rs is 401 lines; the limit is 300. Split it now, before anything
+     parser.cpp is 401 lines; the limit is 300. Split it now, before anything
      else. Make a directory named after the file, give each concern its own
      file, re-export from one entry point (C++ header, C header, TS index).
      Cut along seams that already exist — parse/emit/state/io — not at an
@@ -47,6 +47,14 @@ The file is never created. There is nothing to negotiate with.
 
 <br>
 
+## Why low-level
+
+A deterministic language pins down what the machine actually does. High-level runtimes hide GC pauses, dynamic dispatch, implicit allocation and silent coercion — exactly the invisible state that makes a *generated* program unpredictable.
+
+The counterintuitive part: prompting into a low-level language buys **more** control over the result than prompting into a high-level one, even though the code is harder to write by hand. Difficulty of authorship stops being the deciding cost when you are not the one typing. What is left is how much of the machine's behavior the source actually specifies — and there, C and C++ specify far more of it than Python does. This hook is itself the argument: it used to be Python, and a skill that mandates C++ has no business being enforced by an interpreter.
+
+<br>
+
 ## Rule 1 &nbsp;·&nbsp; No large files
 
 **300 lines. Hard limit. 220 lines, advisory.**
@@ -54,12 +62,22 @@ The file is never created. There is nothing to negotiate with.
 ```
   before                          after
   ──────────────────────────      ──────────────────────────
-  parser.rs      401 lines        parser/
-                                  ├── mod.rs       34
-                                  ├── lex.rs      112
-                                  ├── expr.rs     148
-                                  └── error.rs     61
+  parser.cpp     401 lines        parser/
+                                  ├── parser.hpp   34
+                                  ├── lex.cpp     112
+                                  ├── expr.cpp    148
+                                  └── error.cpp    61
 ```
+
+**The advisory is the useful half.** At 301 the deny lands when it is already too late to split well: you cut wherever you happen to be standing. So the hook speaks at 220, while there are still 80 lines of runway to find a real seam. Measured across 109 authored files — median 78, p90 202 — it fires on about 8% of them, and the ones that used to reach the ceiling had piled up at 289, 296, 299, squeezed under the limit rather than split.
+
+**One file in a hundred genuinely does not split** — a lexer, a transition table, a generated parser. Forcing those produces two worse files, so such a file may grant itself room, in itself, with a reason:
+
+```cpp
+// metal: allow 380 - one lexer state machine, the transition table does not split
+```
+
+Bounded so it stays an exception rather than a repeal: 600 ceiling, the reason has to be a real sentence, and exceeding your own number is denied like anything else. If you cannot write the sentence, the file splits.
 
 Because "split this file" on its own produces garbage, the refusal carries the method with it:
 
@@ -86,7 +104,9 @@ New code starts at the lowest level that fits the problem.
 |:--|:--|:--|
 | **1** | **C++** | The default, for essentially all code. No GC, no runtime between the code and the machine, and the mature library for nearly any domain is already C++. Modern C++ only: RAII, `span`/`string_view`, no raw `new`/`delete`. |
 | **2** | **C** | Freestanding, embedded, tiny binaries, a stable ABI, or existing C to interop with. |
-| **3** | **Assembly** | Only for a hot path measured hot. |
+| **3** | **Assembly** | Only for a hot path measured hot, or an instruction the compiler will not emit. |
+
+**Assembly is not "talking to hardware."** Memory-mapped registers, volatile pointers, peripherals, DMA — that is C's job, and C does it readably and portably. Assembly earns its rung in two narrower cases: a hot path you *measured* hot, and a specific instruction the compiler will not emit for you — reset vectors, interrupt prologues, context switching, a particular SIMD or atomic. Reach for it for what C cannot express, or what C expresses too slowly and you have the number to prove it.
 
 **There is no rung four.** Not Rust, not Go, not Zig, not Python, not TypeScript. "Safer in general", "better tooling", "the ecosystem is over there" are preferences, not reasons, and they lose. A library written elsewhere gets *linked* through its C ABI, never rewritten and never joined — writing C++ and linking a `.so` is still C++ only.
 
@@ -141,10 +161,11 @@ Language preference order lives in `SKILL.md` under *Low-level by default*. Both
 ## How it works
 
 ```
-  Write  src/parser.rs
+  Write  src/parser.cpp
     │
-    ├─  is it source?              .rs                    yes
+    ├─  is it source?              .cpp                   yes
     ├─  is it vendored or built?   node_modules/ target/    no
+    ├─  does it grant itself room? // metal: allow …        no
     ├─  how many lines?            401                       ─
     └─  over the limit?            401 > 300               yes
             │
@@ -153,6 +174,16 @@ Language preference order lives in `SKILL.md` under *Low-level by default*. Both
             │
             ▼
       ✗  the tool call never runs
+
+  ── in the warn band instead ──
+
+    └─  260 lines?                 220 ≤ 260 ≤ 300        yes
+            │
+            ▼
+      PreToolUse returns "allow" + how much runway is left
+            │
+            ▼
+      ✓  the write lands, with 40 lines of notice
 ```
 
 | Event | Fires on | Outcome |
@@ -161,14 +192,6 @@ Language preference order lives in `SKILL.md` under *Low-level by default*. Both
 | `PostToolUse` | `Write` `Edit` | **Warns** via `additionalContext` — the edit lands, the model is told to split |
 | `SessionStart` | startup · resume · clear · compact | Injects both rules, and compiles the hook if the binary is missing or stale |
 | `SubagentStart` | every delegated agent | Injects both rules, so subagents inherit them |
-
-<br>
-
-## Why low-level
-
-A deterministic language pins down what the machine actually does. High-level runtimes hide GC pauses, dynamic dispatch, implicit allocation and silent coercion — exactly the invisible state that makes a *generated* program unpredictable.
-
-The counterintuitive part: prompting into a low-level language buys **more** control over the result than prompting into a high-level one, even though the code is harder to write by hand. Difficulty of authorship stops being the deciding cost when you are not the one typing. What is left is how much of the machine's behavior the source actually specifies — and there, C and C++ specify far more of it than Python does. This hook is itself the argument: it used to be Python, and a skill that mandates C++ has no business being enforced by an interpreter.
 
 <br>
 
