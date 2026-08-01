@@ -5,6 +5,7 @@ on: [push, pull_request]
 jobs:
   selftest:
     strategy:
+      fail-fast: false  # libstdc++ and libc++ disagree often enough that one must not hide the other
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}

@@ -82,7 +82,10 @@ std::string mtime_of(const fs::path& p) {
     std::error_code ec;
     const auto t = fs::last_write_time(p, ec);
     if (ec) return "0";
-    return std::to_string(t.time_since_epoch().count());
+    // The cast is not decoration: file_time_type::rep is long on libstdc++ and a wider type
+    // on libc++, where to_string is then ambiguous. This is only a change-detector, so a
+    // narrowing conversion costs nothing.
+    return std::to_string(static_cast<long long>(t.time_since_epoch().count()));
 }
 
 }  // namespace
