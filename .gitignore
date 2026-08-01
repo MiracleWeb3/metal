@@ -1,4 +1,4 @@
 .omc/
 .pantheon/
 __pycache__/
-.metal-selftest/
+.metal-selftest*/

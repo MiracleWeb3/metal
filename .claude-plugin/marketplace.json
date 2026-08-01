@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "metal",
-  "description": "Small files, low-level languages, a compiler that refuses. Three rules, two enforced by hook.",
+  "description": "Small files, a deliberate language, a toolchain that refuses. Three rules, all enforced by hooks.",
   "owner": {
     "name": "MiracleWeb3",
     "url": "https://github.com/MiracleWeb3"
@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "metal",
-      "description": "Small files, low-level languages, a compiler that refuses. Denies any source file over 300 lines at write time, warns at 220 while there is still room to split well, defaults every new project to C++, and checks that C++ projects actually build with -Wall -Wextra -Werror.",
+      "description": "Small files, a deliberate language, a toolchain that refuses. Denies any source file over 300 lines at write time, warns at 220 while there is still room to split well, asks the language question once on a new project, and checks that C++, TypeScript and Python projects actually turn their strict mode on.",
       "source": "./",
       "category": "productivity"
     }

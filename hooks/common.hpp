@@ -100,5 +100,8 @@ inline std::string payload(std::string_view event, std::string_view field,
 // Rule 1 — no large files. Defined in split.cpp.
 std::optional<std::string> check(std::string_view doc);
 
-// Rule 3 — the compiler refuses. Defined in floor.cpp.
+// Rule 2 — choose the language once, on purpose. Defined in choose.cpp.
+std::optional<std::string> choose_check(std::string_view doc);
+
+// Rule 3 — the toolchain refuses. Defined in floor.cpp.
 std::optional<std::string> floor_check(std::string_view doc);

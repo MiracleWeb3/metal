@@ -45,16 +45,28 @@ A deterministic language pins down what the machine actually does. High-level ru
 2. **C** — freestanding, embedded, tiny binaries, stable ABI, or existing C to interop with.
 3. **Assembly** — only for a hot path measured hot.
 
-**There is no rung four. C and C++ are the whole list.** Not Rust, not Go, not Zig, not
-Python, not TypeScript. "Safer in general", "better tooling", "nicer error handling", "the
-ecosystem is over there" — none of those are reasons, they are preferences, and they lose.
-If a task looks like it needs another language, the task has been misread: C++ links to
-every C ABI on the machine, so a library written elsewhere is *linked*, never rewritten and
-never joined.
+**The other rungs exist, and they are not forbidden — they have to be argued for.** Two questions, in order, decide it:
+
+1. **Does it need control a runtime would take away** — memory layout, timing, no GC pause, a hardware or ABI boundary, behaviour identical in a year? → **the lowest rung that fits, C++ first.**
+2. **Is it a one-shot you run by hand, or under ~100 lines?** → **the highest rung that fits.** C++ here is excessive work for nothing, and metal is not asking for it. A forty-line script does not need a build system.
+
+When neither question decides it, C++ wins by default — the tie goes to control. What the rest actually buy:
+
+| | when it genuinely wins |
+|:--|:--|
+| **Rust** | the compiler enforces memory safety; concurrency is the risk and nobody will hold the invariant by hand |
+| **Zig** | C's simplicity with modern tooling — production-real (TigerBeetle, Ghostty, Bun), 1.0 in 2026 |
+| **Go** | network services and CLIs, where deploy speed beats the last 20% of control |
+| **Python** | a script, glue, or where the library *is* the ecosystem — ML, data, scraping |
+| **TS/JS** | it has to run in a browser. Anything else there is a choice, not a constraint |
+
+"Safer in general", "better tooling", "the ecosystem is over there" are still preferences, not answers to question 1. And a library that exists elsewhere is *linked* through its C ABI, never rewritten and never joined.
+
+A hook asks this once per project, on the first source file written into a tree that has none — the moment the choice becomes expensive to reverse. Every later file is silent.
 
 Rules of engagement:
 
-- New project, tool, service, or anything that outlives the day → C++, no discussion needed.
+- Anything that outlives the day and answers yes to question 1 → C++, no discussion needed.
 - **Never silently upgrade the user's stated language.** If they say C++, it is C++ — a "safer equivalent" substituted without asking is a substitution, not an improvement. If a different language genuinely fits better, say so in one line and then do what they asked.
 - Stepping off C++ requires that it be 100% ok and safe *and* the reason named in one line. Staying on it requires nothing.
 - **An audited implementation that exists in another language gets LINKED, not rewritten and not joined.** A crypto/security protocol with one correct audited implementation (an HSM-backed PIN protocol, a TLS stack, a signature scheme) must not be reimplemented from scratch — but the answer is to call it through its C ABI from C++, not to start writing that language. Same for instrumenting an already-proven path: wrap it, don't re-derive it. Writing C++ and linking a `.so` is still C++ only.
@@ -63,17 +75,16 @@ Rules of engagement:
 - A low-level core that ships but is never built, installed, or called is worth less than the high-level code it replaced. Wire it to a caller and make its absence a hard error, never a silent fallback.
 - Fewer dependencies. A library you have not read is a runtime you cannot predict.
 
-## 3. The compiler refuses
+## 3. The toolchain refuses
 
-C++ is chosen for control, and the compiler is the instrument of it — so it is switched on, not left to taste. This is the one thing on the list that no interpreted language can offer.
+Whatever rung you land on, its strict mode is switched on. Every ecosystem ships one and almost nobody turns it on — and a language chosen for guarantees, run without them, is the worst of both.
 
-**The floor, on every C++ project:**
+| you write | the floor | in |
+|:--|:--|:--|
+| **C / C++** | `-std=c++20 -Wall -Wextra -Werror`<br>debug: `-fsanitize=address,undefined -D_GLIBCXX_ASSERTIONS` | `build.sh` · `CMakeLists.txt` · `Makefile` · `meson.build` |
+| **TypeScript** | `"strict": true` | `tsconfig.json` |
+| **Python** | a type checker configured at all — mypy, pyright, pyrefly or ty | `pyproject.toml` · `mypy.ini` · `pyrightconfig.json` |
 
-```
--std=c++20 -Wall -Wextra -Werror
-debug: -fsanitize=address,undefined -D_GLIBCXX_ASSERTIONS
-```
+A hook reads the nearest config when you write, and names what is missing. **`-Werror` is the one that matters — a warning you are allowed to ignore is a bug that compiles**, and `"strict": true` is the identical switch one ecosystem over. `c++20` is a minimum, not an equality.
 
-A hook reads the nearest `build.sh` / `CMakeLists.txt` / `Makefile` when you write C or C++, and names any missing flag. `-Werror` is the one that matters: **a warning you are allowed to ignore is a bug that compiles.** `c++20` is a minimum, not an equality — later standards pass.
-
-Setting up a new C++ project means writing that build file first, with the floor in it. It is not a later step; without it the language has been chosen and its main advantage left switched off.
+Setting up a project means writing that config first, with the floor in it. It is not a later step; without it the language has been chosen and its main advantage left switched off.

@@ -186,9 +186,14 @@ int main(int argc, char** argv) {
         std::cout << *out << "\n";
         return 0;
     }
-    // Rule 3 only on the way out, and only when rule 1 had nothing to say — a hook gets one
-    // payload, and an oversized file is the more urgent of the two. Deferring also means
-    // rule 3 does not burn its one-per-build-file stamp on a message nobody sees.
+    // A hook gets one payload, so the rules are tried in order of urgency: an oversized
+    // file first, then the language choice (PreToolUse, new projects only), then the build
+    // floor (PostToolUse). Deferring also means the quieter rules do not burn their
+    // once-per-project stamp on a message nobody would have seen.
+    if (const auto out = choose_check(doc)) {
+        std::cout << *out << "\n";
+        return 0;
+    }
     if (hj::get(doc, "hook_event_name").value_or("") == "PostToolUse") {
         if (const auto out = floor_check(doc)) std::cout << *out << "\n";
     }

@@ -1,7 +1,7 @@
 {
   "name": "metal",
-  "version": "1.1.0",
-  "description": "Small files, low-level languages, a compiler that refuses. Denies any source file over 300 lines at write time, warns at 220 while there is still room to split well, defaults every new project to C++, and checks that C++ projects actually build with -Wall -Wextra -Werror.",
+  "version": "1.2.0",
+  "description": "Small files, a deliberate language, a toolchain that refuses. Denies any source file over 300 lines at write time, warns at 220 while there is still room to split well, asks the language question once on a new project, and checks that C++, TypeScript and Python projects actually turn their strict mode on.",
   "author": {
     "name": "MiracleWeb3",
     "url": "https://github.com/MiracleWeb3"
@@ -17,6 +17,8 @@
     "architecture",
     "werror",
     "sanitizers",
-    "build-flags"
+    "typescript",
+    "strict-mode",
+    "code-quality"
   ]
 }

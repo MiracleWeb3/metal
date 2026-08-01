@@ -20,8 +20,8 @@
 
 <br>
 
-**A Claude Code plugin with three rules: small files, low-level languages, a compiler that refuses.**<br>
-<sub>Two of them are enforced by hooks, not by asking nicely.</sub>
+**A Claude Code plugin with three rules: small files, a deliberate language, a toolchain that refuses.**<br>
+<sub>All three are enforced by hooks, not by asking nicely.</sub>
 
 </div>
 
@@ -98,7 +98,7 @@ It also stays out of the way of things that aren't source: `.md`, `.json`, data 
 
 <br>
 
-## Rule 2 &nbsp;·&nbsp; Low-level by default
+## Rule 2 &nbsp;·&nbsp; Choose the language once, on purpose
 
 New code starts at the lowest level that fits the problem.
 
@@ -110,26 +110,57 @@ New code starts at the lowest level that fits the problem.
 
 **Assembly is not "talking to hardware."** Memory-mapped registers, volatile pointers, peripherals, DMA — that is C's job, and C does it readably and portably. Assembly earns its rung in two narrower cases: a hot path you *measured* hot, and a specific instruction the compiler will not emit for you — reset vectors, interrupt prologues, context switching, a particular SIMD or atomic. Reach for it for what C cannot express, or what C expresses too slowly and you have the number to prove it.
 
-**There is no rung four.** Not Rust, not Go, not Zig, not Python, not TypeScript. "Safer in general", "better tooling", "the ecosystem is over there" are preferences, not reasons, and they lose. A library written elsewhere gets *linked* through its C ABI, never rewritten and never joined — writing C++ and linking a `.so` is still C++ only.
+**The other rungs are not forbidden — they have to be argued for.** Two questions decide it, in order:
 
-Two narrow escapes: one-shot glue that never enters the repo, and a platform that physically forbids native code (a browser, a UI shell). Keep that layer thin and push every real decision into a C++ core behind it. Neither is a licence to start a second codebase.
+> **1.** Does it need control a runtime would take away — memory layout, timing, no GC pause, a hardware or ABI boundary, behaviour identical in a year? → **the lowest rung that fits, C++ first.**
+>
+> **2.** Is it a one-shot you run by hand, or under ~100 lines? → **the highest rung that fits.** C++ here is excessive work for nothing.
 
-The *choice* itself cannot be hooked — it happens before any tool call exists to intercept. So `SKILL.md` is injected at every `SessionStart` **and** every `SubagentStart`, which means it survives context compaction and reaches delegated subagents that would otherwise reach for Python out of habit. What the choice *implies* is hookable, and that is rule 3.
+Question 2 is the one most "always use X" rules never ask, and it is why they get ignored the first time they are obviously wrong. A forty-line script does not need a build system. When neither question decides, C++ wins by default — the tie goes to control.
 
-It does **not** rewrite your existing codebases. It proposes the low-level lane where the pain is actually determinism — parsers, protocols, state machines, concurrency, hot paths — and otherwise leaves them alone.
+| | when it genuinely wins |
+|:--|:--|
+| **Rust** | the compiler enforces memory safety; concurrency is the risk and nobody will hold the invariant by hand |
+| **Zig** | C's simplicity with modern tooling — production-real (TigerBeetle, Ghostty, Bun), 1.0 in 2026 |
+| **Go** | network services and CLIs, where deploy speed beats the last 20% of control |
+| **Python** | a script, glue, or where the library *is* the ecosystem — ML, data, scraping |
+| **TS/JS** | it has to run in a browser. Anything else there is a choice, not a constraint |
+
+"Safer in general", "better tooling", "the ecosystem is over there" are still preferences, not answers to question 1. A library written elsewhere gets *linked* through its C ABI, never rewritten and never joined.
+
+**The choice can't be hooked in general** — it happens in a sentence, before any tool call exists. But it *lands* somewhere: the first source file written into a tree that has none. That write is a tool call, and it is the exact instant the decision becomes expensive to reverse.
+
+```console
+$ # the first file in a new project
+
+  ✓  Write  src/main.py
+
+     ~/dev/scraper holds no source yet, so this write sets the language
+     to Python. One pass before it sets:
+       C++     total control, nothing between the code and the machine…
+       Python  a script, glue, or where the library IS the ecosystem…
+     1. Needs control a runtime would take away?  → lowest rung, C++ first.
+     2. A one-shot under ~100 lines?  → highest rung that fits.
+     Name the choice and the reason in one line, then write.
+```
+
+Measured across 30 days of real transcripts: **16 such moments, 0.53/day** — roughly one every two days. It **allows**, always; it asks once per project and every later file in that tree is silent. It does **not** rewrite your existing codebases, and it never fires inside one.
 
 <br>
 
-## Rule 3 &nbsp;·&nbsp; The compiler refuses
+## Rule 3 &nbsp;·&nbsp; The toolchain refuses
 
-Picking C++ buys control. Most projects then leave that control switched off.
+Every ecosystem ships a strict mode. Almost nobody turns it on — and a language chosen for its guarantees, run without them, is the worst of both.
 
-```
-release   -std=c++20 -Wall -Wextra -Werror
-debug     -fsanitize=address,undefined -D_GLIBCXX_ASSERTIONS
-```
+| you write | the floor | read from |
+|:--|:--|:--|
+| `.c` `.cpp` `.hpp` | `-Wall -Wextra -Werror`<br><sub>debug: `-fsanitize=address,undefined -D_GLIBCXX_ASSERTIONS`</sub> | `build.sh` · `CMakeLists.txt` · `Makefile` · `meson.build` |
+| `.ts` `.tsx` | `"strict": true` | `tsconfig.json` |
+| `.py` | a type checker configured **at all** | `pyproject.toml` · `mypy.ini` · `pyrightconfig.json` |
 
-Write a `.cpp` and the hook walks up to the nearest `build.sh`, `CMakeLists.txt`, `Makefile` or `meson.build` and reads it. Missing a floor flag, and it says which one:
+`"strict": true` is [one switch that turns on eight checks](https://www.typescriptlang.org/tsconfig/) — the same shape as `-Werror`, and a vibe-coded `tsconfig` with strict off is the identical disease one ecosystem over. For Python metal deliberately does not pick a checker: [mypy, pyright, pyrefly and ty are all live in 2026](https://www.danilchenko.dev/posts/pyrefly-vs-mypy-vs-ty/) with no winner, and the real gap is having none.
+
+Write a file and the hook walks up to the nearest config and reads it. Missing something, and it says what:
 
 ```console
 $ # the model writes src/index.cpp
@@ -143,9 +174,9 @@ $ # the model writes src/index.cpp
      -fsanitize=address,undefined -D_GLIBCXX_ASSERTIONS.
 ```
 
-**`-Werror` is the one that matters.** Every other flag produces text somebody scrolls past. This is the rule with no equivalent in an interpreted language — it exists *because* the language was chosen, rather than being a restriction that follows from it.
+**`-Werror` is the one that matters.** Every other flag produces text somebody scrolls past. C++ is the deepest instance of this rule, not the only one — it is where a strict mode buys the most, which is the whole argument for being down there.
 
-Advisory, never a deny: a build file being wrong is not the source file's fault. It speaks once per build file and re-arms when that file changes, so a project that meets the floor never hears from it again. C and C++ only. Scratchpads, `/tmp`, and vendored trees are exempt — one-shot glue has no build system and shouldn't be nagged about it.
+Advisory, never a deny: a config file being wrong is not the source file's fault. It speaks once per config file and re-arms when that file changes, so a project that meets the floor never hears from it again. Scratchpads, `/tmp`, and vendored trees are exempt — one-shot glue has no build system and shouldn't be nagged about it. A language metal has no floor for stays silent.
 
 A missing sanitizer is **not** a violation on its own. The first cut of this rule treated it as one and fired on 11 of the 15 modules in the one project that met the floor everywhere; a check that scolds your best code is a check you learn to ignore. It rides along only when a real flag is already missing.
 
@@ -235,7 +266,7 @@ Language preference order lives in `SKILL.md` under *Low-level by default*. Ever
 
 | Event | Fires on | Outcome |
 |:--|:--|:--|
-| `PreToolUse` | `Write` | **Denies** over the limit — the oversized file is never created. In the warn band it **allows** and says how much room is left |
+| `PreToolUse` | `Write` | **Denies** over the limit — the oversized file is never created. In the warn band it **allows** and says how much room is left. When rule 1 is quiet, rule 2 asks the language question on the first file of a new project |
 | `PostToolUse` | `Write` `Edit` | **Warns** via `additionalContext` — the edit lands, the model is told to split. When rule 1 has nothing to say, rule 3 checks the build floor |
 | `SessionStart` | startup · resume · clear · compact | Injects all three rules, and compiles the hook if the binary is missing or stale |
 | `SubagentStart` | every delegated agent | Injects all three rules, so subagents inherit them |
@@ -250,11 +281,11 @@ A hook gets one payload, so rule 1 takes the slot when both have something to sa
 METAL_SELFTEST=1 ./build.sh /tmp/split && /tmp/split --selftest
 ```
 
-No framework. Thirty assertions covering both hook branches, the warn band, the override and its bounds, the extension filter, skipped build directories, garbage input, and rule 3's floor check against real build files on disk. The test code compiles in only under `-DMETAL_SELFTEST`, so the hook that runs on every Write carries none of it — and the selftest build adds `-fsanitize=address,undefined`, the debug mode rule 3 asks everyone else for.
+No framework. Forty-four assertions covering both hook branches, the warn band, the override and its bounds, the extension filter, skipped build directories, garbage input, rule 2's new-project question, and rule 3's floor across C++, TypeScript and Python against real config files on disk. The test code compiles in only under `-DMETAL_SELFTEST`, so the hook that runs on every Write carries none of it — and the selftest build adds `-fsanitize=address,undefined`, the debug mode rule 3 asks everyone else for.
 
 The port from Python was checked differentially rather than by eye: 1,180 inputs — 500 real source files plus every threshold, marker variant, and reordered-key case — run through both implementations, compared as parsed JSON. Zero semantic mismatches.
 
-Rule 3 was validated against real projects rather than fixtures alone: a codebase with `-Wall -Wextra` and no `-Werror` must warn, and all fifteen modules of a project that meets the floor everywhere must stay silent. Both hold.
+Rules 2 and 3 were validated against real projects, not fixtures alone. Rule 3: a codebase with `-Wall -Wextra` and no `-Werror` must warn, and all fifteen modules of a project that meets the floor everywhere must stay silent. Rule 2: five paths inside established projects — including a brand-new module directory — must all stay silent, and a genuinely empty project must get the question. All hold.
 
 CI builds on Linux and macOS through the same `build.sh` — `-Wall -Wextra -Werror`, the floor applied to metal itself — asserts the hook stays silent on malformed input, and checks by glob that every file in `hooks/` obeys the 300-line rule, so a file added later cannot quietly escape it.
 
@@ -269,9 +300,11 @@ CI builds on Linux and macOS through the same `build.sh` — `-Wall -Wextra -Wer
 SKILL.md                          all three rules, injected every session
 build.sh                          metal built under its own floor
 hooks/hooks.json                  wiring
-hooks/split.cpp                   rule 1, the line limit — 196 lines
-hooks/floor.cpp                   rule 3, the build floor — 159 lines
-hooks/common.hpp                  shared by both — 104 lines
+hooks/split.cpp                   rule 1, the line limit — 201 lines
+hooks/choose.cpp                  rule 2, the language question — 152 lines
+hooks/floor.cpp                   rule 3, the toolchain floor — 190 lines
+hooks/common.hpp                  shared by all three — 107 lines
+hooks/stamp.hpp                   say it once, re-arm when it changes — 73 lines
 hooks/hookjson.hpp                enough JSON to read one hook event
 hooks/selftest.inc                assertions, compiled in only for the selftest
 assets/                           hero, dark and light
@@ -296,13 +329,17 @@ assets/                           hero, dark and light
 
 **Why the override is bounded.** An exception that can name any number is a repeal with extra steps. Capping it at 600 and demanding a real sentence means using it costs more than splitting would in every case except the one it exists for.
 
+**Why rule 2 asks instead of decrees.** It used to end with "there is no rung four", which is the kind of line that gets a plugin uninstalled by exactly the people whose code it would most improve — and which is wrong often enough to be ignored the rest of the time. A rule that cannot say "this is a forty-line script, Python is fine" has no credibility when it says "this is a parser, use C++." The tilt toward the lowest rung is unchanged; what it gained is the ability to be right about the other case.
+
+**Why the question fires where it does.** An earlier design *denied* non-C++ files outright. Measured against 30 days of real transcripts it fired ~0 times after its own escape hatches, and where it did fire it was usually wrong — a Python file written into an existing Python project that the rules already exempt. The first source file in an empty tree is a different event: 0.53/day, and the only moment where the answer is still cheap to change.
+
 **Why rule 3 exists at all.** `SKILL.md` used to end rule 2 with *"discipline comes from style, not from the compiler refusing"* — which conceded the exact fight the plugin was built to win. Every other quality rule here is arithmetic in a hook; the most valuable one was left as taste. In C++ the compiler *can* refuse, and a project that skips `-Werror` has chosen the language and declined its main advantage.
 
 **Why it warns instead of denying.** Rule 1 denies because the offending artifact *is* the write. Rule 3's offending artifact is a build file somewhere up the tree — blocking a source file over it punishes the wrong thing and makes the plugin impossible to adopt incrementally.
 
 **Why once per build file.** Writing twelve files into a project must not produce twelve identical lines. The stamp records the build file's mtime, so the warning re-arms exactly when the thing being judged changes and stays quiet otherwise.
 
-**Why the floor is only three flags.** `-Wconversion`, `-Wshadow`, `-Wold-style-cast` and `clang-tidy`'s `cppcoreguidelines` catch more, and they also break builds that pass today. A floor nobody can adopt is a floor nobody adopts. Three flags, then earn the rest.
+**Why the C++ floor is only three flags.** `-Wconversion`, `-Wshadow`, `-Wold-style-cast` and `clang-tidy`'s `cppcoreguidelines` catch more, and they also break builds that pass today. A floor nobody can adopt is a floor nobody adopts. Three flags, then earn the rest.
 
 </details>
 
