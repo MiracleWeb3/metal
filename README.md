@@ -3,7 +3,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/hero-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="assets/hero-light.svg">
-  <img alt="metal — small files, low-level languages" src="assets/hero-light.svg" width="100%">
+  <img alt="metal — small files, a deliberate language, a toolchain that refuses" src="assets/hero-light.svg" width="100%">
 </picture>
 
 <br>
@@ -16,12 +16,12 @@
 
 <br>
 
-<a href="#why-low-level">Why</a> &nbsp;·&nbsp; <a href="#rule-1--no-large-files">Rule&nbsp;1</a> &nbsp;·&nbsp; <a href="#rule-2--low-level-by-default">Rule&nbsp;2</a> &nbsp;·&nbsp; <a href="#rule-3--the-compiler-refuses">Rule&nbsp;3</a> &nbsp;·&nbsp; <a href="#install">Install</a> &nbsp;·&nbsp; <a href="#configure">Configure</a> &nbsp;·&nbsp; <a href="#how-it-works">How&nbsp;it&nbsp;works</a>
+<a href="#does-it-work">Does&nbsp;it&nbsp;work</a> &nbsp;·&nbsp; <a href="#rule-1--no-large-files">Rule&nbsp;1</a> &nbsp;·&nbsp; <a href="#rule-2--choose-the-language-once-on-purpose">Rule&nbsp;2</a> &nbsp;·&nbsp; <a href="#rule-3--the-toolchain-refuses">Rule&nbsp;3</a> &nbsp;·&nbsp; <a href="#install">Install</a> &nbsp;·&nbsp; <a href="#configure">Configure</a> &nbsp;·&nbsp; <a href="#how-it-works">How&nbsp;it&nbsp;works</a>
 
 <br>
 
-**A Claude Code plugin with three rules: small files, a deliberate language, a toolchain that refuses.**<br>
-<sub>All three are enforced by hooks, not by asking nicely.</sub>
+**Claude writes a 900-line file. This plugin makes the tool call fail.**<br>
+<sub>Three rules, all enforced by hooks rather than by asking nicely. Any language.</sub>
 
 </div>
 
@@ -49,11 +49,35 @@ The file is never created. There is nothing to negotiate with.
 
 <br>
 
-## Why low-level
+## Does it work
 
-A deterministic language pins down what the machine actually does. High-level runtimes hide GC pauses, dynamic dispatch, implicit allocation and silent coercion — exactly the invisible state that makes a *generated* program unpredictable.
+One machine, 690 real writes, split at the day metal was installed:
 
-The counterintuitive part: prompting into a low-level language buys **more** control over the result than prompting into a high-level one, even though the code is harder to write by hand. Difficulty of authorship stops being the deciding cost when you are not the one typing. What is left is how much of the machine's behavior the source actually specifies — and there, C and C++ specify far more of it than Python does. This hook is itself the argument: it used to be Python, and a skill that mandates C++ has no business being enforced by an interpreter.
+| | before | after | |
+|:--|--:|--:|:--|
+| median file | 63 | 68 | *unchanged — as intended* |
+| p90 | 245 | 170 | **−31%** |
+| p99 | 605 | 277 | **−54%** |
+| largest write | 679 | 334 | **−51%** |
+| over 300 lines | 4.7% | 0.9% | |
+
+**The tail collapsed and the median did not move.** That is the shape you want: the rule was never meant to change ordinary files, only to stop the 679-line ones.
+
+Restricted to languages the C++ preference never touched — TypeScript, Python, JavaScript, shell — p90 still falls **245 → 148**. So the effect is the line limit, not the language opinion.
+
+<sub>Honest about what this is: a natural experiment on one machine, not a controlled trial. 106 writes before, 584 after, and the projects differ across the two periods.</sub>
+
+<br>
+
+## Three rules
+
+| | | applies to |
+|:--|:--|:--|
+| **1** | **No large files.** Denies a write over 300 lines, advises at 220, carries the split method with the refusal. | **any language** — 29 extensions |
+| **2** | **Choose the language once, on purpose.** On the first file of a new project, lays out what each rung actually buys and asks two questions. Never denies. | **any language**, fires ~once every two days |
+| **3** | **The toolchain refuses.** Checks that your project actually turned its strict mode on. | **C/C++, TypeScript, Python** |
+
+Rules 1 and 3 are worth installing whatever you write. Rule 2 has an opinion — it tilts toward the lowest rung that fits — but it argues rather than decrees, and it will tell you when C++ is the wrong answer.
 
 <br>
 
@@ -100,7 +124,11 @@ It also stays out of the way of things that aren't source: `.md`, `.json`, data 
 
 ## Rule 2 &nbsp;·&nbsp; Choose the language once, on purpose
 
-New code starts at the lowest level that fits the problem.
+New code starts at the lowest level that fits the problem — and the reason is specific to *generated* code.
+
+A deterministic language pins down what the machine actually does. High-level runtimes hide GC pauses, dynamic dispatch, implicit allocation and silent coercion: exactly the invisible state that makes a generated program unpredictable. The counterintuitive part is that prompting into a low-level language buys **more** control over the result than prompting into a high-level one, even though the code is harder to write by hand — because difficulty of authorship stops being the deciding cost when you are not the one typing. What is left is how much of the machine's behaviour the source actually specifies, and there C and C++ specify far more than Python does.
+
+This hook is itself the argument: it used to be Python, and a plugin that recommends C++ has no business being enforced by an interpreter.
 
 | | Language | When |
 |:--|:--|:--|
