@@ -1,6 +1,6 @@
 {
   "name": "metal",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Small files, a deliberate language, a toolchain that refuses. Denies any source file over 300 lines at write time, warns at 220 while there is still room to split well, asks the language question once on a new project, and checks that C++, TypeScript and Python projects actually turn their strict mode on.",
   "author": {
     "name": "MiracleWeb3",

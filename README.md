@@ -110,6 +110,21 @@ New code starts at the lowest level that fits the problem.
 
 **Assembly is not "talking to hardware."** Memory-mapped registers, volatile pointers, peripherals, DMA — that is C's job, and C does it readably and portably. Assembly earns its rung in two narrower cases: a hot path you *measured* hot, and a specific instruction the compiler will not emit for you — reset vectors, interrupt prologues, context switching, a particular SIMD or atomic. Reach for it for what C cannot express, or what C expresses too slowly and you have the number to prove it.
 
+**Having chosen the level, use it.** C++ written like Python with semicolons pays the whole authorship cost and collects none of the control — the only way this choice is genuinely wrong.
+
+| | |
+|:--|:--|
+| **Move work to compile time** | `constexpr` the table instead of building it at startup, `static_assert` the invariant instead of testing it, `[[nodiscard]]` anything returning a status so it cannot be silently dropped. The tier no interpreted language has at all, and the one most often left on the floor. |
+| **Views in, owners out** | `string_view` and `span` at every boundary; `const std::string&` only when you store it — otherwise every call site holding a literal or a view pays for an allocation. |
+| **Layout is a decision** | Contiguous over pointer-chasing, `reserve()` before a loop that pushes, struct-of-arrays when you iterate one field across many objects. |
+| **Reach for the level** | `mmap` over a read loop, a bump allocator over a million small news, SIMD when you measured it, the syscall directly — when it is the answer, not for sport. |
+
+Measured on a 63,000-line C++ tree that already avoids every beginner tell — no `std::endl`, no `using namespace std`, no `shared_ptr`, 1,434 `string_view` uses — the gap was still **two `static_assert` and zero `[[nodiscard]]`**. The compile-time tier is the one that goes uncollected even in good C++.
+
+None of it applies to a forty-line tool. Question 2 below still governs.
+
+<br>
+
 **The other rungs are not forbidden — they have to be argued for.** Two questions decide it, in order:
 
 > **1.** Does it need control a runtime would take away — memory layout, timing, no GC pause, a hardware or ABI boundary, behaviour identical in a year? → **the lowest rung that fits, C++ first.**
@@ -175,6 +190,8 @@ $ # the model writes src/index.cpp
 ```
 
 **`-Werror` is the one that matters.** Every other flag produces text somebody scrolls past. C++ is the deepest instance of this rule, not the only one — it is where a strict mode buys the most, which is the whole argument for being down there.
+
+**Above the floor, escalate rather than hand-roll.** `-Wconversion -Wshadow -Wold-style-cast`, then `clang-tidy` with `performance-*`, `modernize-*`, `cppcoreguidelines-*` — which catch value-parameter copies, missing `[[nodiscard]]` and owning raw pointers mechanically, with full type information. metal does not reimplement that. It is a floor, not a linter, and it stays at three flags because a floor nobody can adopt is a floor nobody adopts.
 
 Advisory, never a deny: a config file being wrong is not the source file's fault. It speaks once per config file and re-arms when that file changes, so a project that meets the floor never hears from it again. Scratchpads, `/tmp`, and vendored trees are exempt — one-shot glue has no build system and shouldn't be nagged about it. A language metal has no floor for stays silent.
 

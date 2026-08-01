@@ -40,6 +40,15 @@ A deterministic language pins down what the machine actually does. High-level ru
 
    Modern C++ only (17/20+): RAII, smart pointers, `span`/`string_view`, no raw `new`/`delete`. Rule 3 is what keeps that honest.
 
+   **Having chosen the level, use it.** C++ written like Python with semicolons pays the whole authorship cost and collects none of the control — that is the only way this choice is actually wrong:
+
+   - **Move work to compile time.** `constexpr` the table instead of building it at startup, `static_assert` the invariant instead of testing it, `[[nodiscard]]` anything returning a status so it cannot be silently dropped. This is the tier no interpreted language has at all, and it is the one most often left on the floor.
+   - **Views in, owners out.** `string_view` and `span` at every boundary; take `const std::string&` only when you store it. A `const std::string&` parameter forces an allocation at every call site that had a literal or a view.
+   - **Layout is a decision, not a default.** Contiguous over pointer-chasing, `reserve()` before a loop that pushes, struct-of-arrays when you iterate one field across many objects.
+   - **Reach for what the level gives** when it is the answer, not for sport: `mmap` over a read loop, a bump allocator over a million small news, SIMD when you measured it, the syscall directly.
+
+   None of this applies to a forty-line tool. Question 2 above still governs.
+
    Especially where its ecosystem *is* the ecosystem: GPU/compute (CUDA, HIP/ROCm, SYCL, OpenCL), numerics/HPC (Eigen, BLAS/LAPACK, MKL, OpenMP), graphics/games/audio (Unreal, engine SDKs, JUCE, VST3), vision/robotics (OpenCV, ROS, PCL), native GUI (Qt), and graphs or trees with genuine shared or cyclic ownership.
 
 2. **C** — freestanding, embedded, tiny binaries, stable ABI, or existing C to interop with.
@@ -88,3 +97,5 @@ Whatever rung you land on, its strict mode is switched on. Every ecosystem ships
 A hook reads the nearest config when you write, and names what is missing. **`-Werror` is the one that matters — a warning you are allowed to ignore is a bug that compiles**, and `"strict": true` is the identical switch one ecosystem over. `c++20` is a minimum, not an equality.
 
 Setting up a project means writing that config first, with the floor in it. It is not a later step; without it the language has been chosen and its main advantage left switched off.
+
+**Above the floor, escalate rather than hand-roll.** `-Wconversion -Wshadow -Wold-style-cast`, then `clang-tidy` with `performance-*`, `modernize-*`, `cppcoreguidelines-*` — which check the value-parameter copies, the missing `[[nodiscard]]`, the owning raw pointers, mechanically and with full type information. metal does not reimplement that; it is a floor, not a linter. The floor stays at three flags because a floor nobody can adopt is a floor nobody adopts.
