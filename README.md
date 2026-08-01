@@ -16,12 +16,12 @@
 
 <br>
 
-<a href="#why-low-level">Why</a> &nbsp;·&nbsp; <a href="#rule-1--no-large-files">Rule&nbsp;1</a> &nbsp;·&nbsp; <a href="#rule-2--low-level-by-default">Rule&nbsp;2</a> &nbsp;·&nbsp; <a href="#install">Install</a> &nbsp;·&nbsp; <a href="#configure">Configure</a> &nbsp;·&nbsp; <a href="#how-it-works">How&nbsp;it&nbsp;works</a>
+<a href="#why-low-level">Why</a> &nbsp;·&nbsp; <a href="#rule-1--no-large-files">Rule&nbsp;1</a> &nbsp;·&nbsp; <a href="#rule-2--low-level-by-default">Rule&nbsp;2</a> &nbsp;·&nbsp; <a href="#rule-3--the-compiler-refuses">Rule&nbsp;3</a> &nbsp;·&nbsp; <a href="#install">Install</a> &nbsp;·&nbsp; <a href="#configure">Configure</a> &nbsp;·&nbsp; <a href="#how-it-works">How&nbsp;it&nbsp;works</a>
 
 <br>
 
-**A Claude Code plugin with two rules: small files, low-level languages.**<br>
-<sub>One of them is enforced by a hook, not by asking nicely.</sub>
+**A Claude Code plugin with three rules: small files, low-level languages, a compiler that refuses.**<br>
+<sub>Two of them are enforced by hooks, not by asking nicely.</sub>
 
 </div>
 
@@ -114,9 +114,40 @@ New code starts at the lowest level that fits the problem.
 
 Two narrow escapes: one-shot glue that never enters the repo, and a platform that physically forbids native code (a browser, a UI shell). Keep that layer thin and push every real decision into a C++ core behind it. Neither is a licence to start a second codebase.
 
-This rule cannot be hooked — language choice happens before any tool call exists to intercept. So `SKILL.md` is injected at every `SessionStart` **and** every `SubagentStart`, which means it survives context compaction and reaches delegated subagents that would otherwise reach for Python out of habit.
+The *choice* itself cannot be hooked — it happens before any tool call exists to intercept. So `SKILL.md` is injected at every `SessionStart` **and** every `SubagentStart`, which means it survives context compaction and reaches delegated subagents that would otherwise reach for Python out of habit. What the choice *implies* is hookable, and that is rule 3.
 
 It does **not** rewrite your existing codebases. It proposes the low-level lane where the pain is actually determinism — parsers, protocols, state machines, concurrency, hot paths — and otherwise leaves them alone.
+
+<br>
+
+## Rule 3 &nbsp;·&nbsp; The compiler refuses
+
+Picking C++ buys control. Most projects then leave that control switched off.
+
+```
+release   -std=c++20 -Wall -Wextra -Werror
+debug     -fsanitize=address,undefined -D_GLIBCXX_ASSERTIONS
+```
+
+Write a `.cpp` and the hook walks up to the nearest `build.sh`, `CMakeLists.txt`, `Makefile` or `meson.build` and reads it. Missing a floor flag, and it says which one:
+
+```console
+$ # the model writes src/index.cpp
+
+  ✓  Write  src/index.cpp   84 lines
+
+     cpp/CMakeLists.txt governs this file and is missing -Werror.
+     metal's floor is -std=c++20 -Wall -Wextra -Werror. A warning you
+     are allowed to ignore is a bug that compiles.
+     There is no sanitizer mode either; a debug build wants
+     -fsanitize=address,undefined -D_GLIBCXX_ASSERTIONS.
+```
+
+**`-Werror` is the one that matters.** Every other flag produces text somebody scrolls past. This is the rule with no equivalent in an interpreted language — it exists *because* the language was chosen, rather than being a restriction that follows from it.
+
+Advisory, never a deny: a build file being wrong is not the source file's fault. It speaks once per build file and re-arms when that file changes, so a project that meets the floor never hears from it again. C and C++ only. Scratchpads, `/tmp`, and vendored trees are exempt — one-shot glue has no build system and shouldn't be nagged about it.
+
+A missing sanitizer is **not** a violation on its own. The first cut of this rule treated it as one and fired on 11 of the 15 modules in the one project that met the floor everywhere; a check that scolds your best code is a check you learn to ignore. It rides along only when a real flag is already missing.
 
 <br>
 
@@ -159,7 +190,18 @@ A file that genuinely does not split can say so, in itself, with a reason:
 // metal: allow 380 - one lexer state machine, the transition table does not split
 ```
 
-Language preference order lives in `SKILL.md` under *Low-level by default*. Both files are meant to be edited — the whole plugin reads in under two minutes.
+Rule 3's floor is one array, in the file next to it:
+
+```cpp
+// hooks/floor.cpp
+constexpr std::array<std::string_view, 3> kFloor{"-Wall", "-Wextra", "-Werror"};
+constexpr std::array<std::string_view, 5> kBuildFiles{"build.sh", "CMakeLists.txt",
+                                                      "Makefile", "makefile", "meson.build"};
+```
+
+Set `METAL_NO_STAMP=1` to make rule 3 speak on every write instead of once per build file.
+
+Language preference order lives in `SKILL.md` under *Low-level by default*. Every one of these files is meant to be edited — the whole plugin reads in under five minutes.
 
 <br>
 
@@ -194,21 +236,27 @@ Language preference order lives in `SKILL.md` under *Low-level by default*. Both
 | Event | Fires on | Outcome |
 |:--|:--|:--|
 | `PreToolUse` | `Write` | **Denies** over the limit — the oversized file is never created. In the warn band it **allows** and says how much room is left |
-| `PostToolUse` | `Write` `Edit` | **Warns** via `additionalContext` — the edit lands, the model is told to split |
-| `SessionStart` | startup · resume · clear · compact | Injects both rules, and compiles the hook if the binary is missing or stale |
-| `SubagentStart` | every delegated agent | Injects both rules, so subagents inherit them |
+| `PostToolUse` | `Write` `Edit` | **Warns** via `additionalContext` — the edit lands, the model is told to split. When rule 1 has nothing to say, rule 3 checks the build floor |
+| `SessionStart` | startup · resume · clear · compact | Injects all three rules, and compiles the hook if the binary is missing or stale |
+| `SubagentStart` | every delegated agent | Injects all three rules, so subagents inherit them |
+
+A hook gets one payload, so rule 1 takes the slot when both have something to say — an oversized file is the more urgent of the two, and rule 3 holds its message rather than burning its once-per-build-file budget on something nobody reads.
 
 <br>
 
 ## Test
 
 ```
-c++ -std=c++20 -O2 -DMETAL_SELFTEST -o /tmp/split hooks/split.cpp && /tmp/split --selftest
+METAL_SELFTEST=1 ./build.sh /tmp/split && /tmp/split --selftest
 ```
 
-No framework, no fixtures. Nineteen assertions covering both hook branches, the warn band, the override and its bounds, the extension filter, skipped build directories, and garbage input. The test code compiles in only under `-DMETAL_SELFTEST`, so the hook that runs on every Write carries none of it.
+No framework. Thirty assertions covering both hook branches, the warn band, the override and its bounds, the extension filter, skipped build directories, garbage input, and rule 3's floor check against real build files on disk. The test code compiles in only under `-DMETAL_SELFTEST`, so the hook that runs on every Write carries none of it — and the selftest build adds `-fsanitize=address,undefined`, the debug mode rule 3 asks everyone else for.
 
-The port from Python was checked differentially rather than by eye: 1,180 inputs — 500 real source files plus every threshold, marker variant, and reordered-key case — run through both implementations, compared as parsed JSON. Zero semantic mismatches. CI builds on Linux and macOS with `-Wall -Wextra -Werror`, asserts the hook stays silent on malformed input, and checks that every hook file obeys its own 300-line rule.
+The port from Python was checked differentially rather than by eye: 1,180 inputs — 500 real source files plus every threshold, marker variant, and reordered-key case — run through both implementations, compared as parsed JSON. Zero semantic mismatches.
+
+Rule 3 was validated against real projects rather than fixtures alone: a codebase with `-Wall -Wextra` and no `-Werror` must warn, and all fifteen modules of a project that meets the floor everywhere must stay silent. Both hold.
+
+CI builds on Linux and macOS through the same `build.sh` — `-Wall -Wextra -Werror`, the floor applied to metal itself — asserts the hook stays silent on malformed input, and checks by glob that every file in `hooks/` obeys the 300-line rule, so a file added later cannot quietly escape it.
 
 <details>
 <summary><b>Layout</b></summary>
@@ -218,9 +266,12 @@ The port from Python was checked differentially rather than by eye: 1,180 inputs
 ```
 .claude-plugin/plugin.json        manifest
 .claude-plugin/marketplace.json   so others can install it
-SKILL.md                          both rules, injected every session
+SKILL.md                          all three rules, injected every session
+build.sh                          metal built under its own floor
 hooks/hooks.json                  wiring
-hooks/split.cpp                   the enforcer — 240 lines
+hooks/split.cpp                   rule 1, the line limit — 196 lines
+hooks/floor.cpp                   rule 3, the build floor — 159 lines
+hooks/common.hpp                  shared by both — 104 lines
 hooks/hookjson.hpp                enough JSON to read one hook event
 hooks/selftest.inc                assertions, compiled in only for the selftest
 assets/                           hero, dark and light
@@ -244,6 +295,14 @@ assets/                           hero, dark and light
 **Why 220 is not arbitrary.** It was measured. Across 109 authored C/C++ files the distribution ran median 78, p75 140, p90 202 — and then max 299, with nothing above it. That ceiling is not where good files naturally land; it is where files get squeezed, and the pile-up at 289/296/299 is the fingerprint. 220 is the point that catches those while ~8% of files are still short enough to have a seam worth finding.
 
 **Why the override is bounded.** An exception that can name any number is a repeal with extra steps. Capping it at 600 and demanding a real sentence means using it costs more than splitting would in every case except the one it exists for.
+
+**Why rule 3 exists at all.** `SKILL.md` used to end rule 2 with *"discipline comes from style, not from the compiler refusing"* — which conceded the exact fight the plugin was built to win. Every other quality rule here is arithmetic in a hook; the most valuable one was left as taste. In C++ the compiler *can* refuse, and a project that skips `-Werror` has chosen the language and declined its main advantage.
+
+**Why it warns instead of denying.** Rule 1 denies because the offending artifact *is* the write. Rule 3's offending artifact is a build file somewhere up the tree — blocking a source file over it punishes the wrong thing and makes the plugin impossible to adopt incrementally.
+
+**Why once per build file.** Writing twelve files into a project must not produce twelve identical lines. The stamp records the build file's mtime, so the warning re-arms exactly when the thing being judged changes and stays quiet otherwise.
+
+**Why the floor is only three flags.** `-Wconversion`, `-Wshadow`, `-Wold-style-cast` and `clang-tidy`'s `cppcoreguidelines` catch more, and they also break builds that pass today. A floor nobody can adopt is a floor nobody adopts. Three flags, then earn the rest.
 
 </details>
 

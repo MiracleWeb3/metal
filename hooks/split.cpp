@@ -19,7 +19,6 @@
 // should not be enforced by an interpreter. It also runs on every Write, where process
 // startup is the whole cost.
 #include <algorithm>
-#include <array>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
@@ -28,7 +27,7 @@
 #include <string>
 #include <string_view>
 
-#include "hookjson.hpp"
+#include "common.hpp"
 
 namespace {
 
@@ -36,44 +35,6 @@ constexpr int kLimit = 300;         // keep in sync with SKILL.md
 constexpr int kWarn = 220;          // advisory only; ~8% of real files, all with runway left
 constexpr int kMaxOverride = 600;   // bounded: an exception that can name any size is a repeal
 constexpr std::size_t kMinReason = 20;  // "because" is not a reason
-
-constexpr std::array<std::string_view, 29> kCode{
-    ".rs", ".c", ".h", ".cpp", ".hpp", ".cc", ".zig", ".go", ".py", ".js", ".jsx", ".ts",
-    ".tsx", ".vue", ".svelte", ".java", ".rb", ".php", ".sh", ".swift", ".kt", ".cs",
-    ".lua", ".ex", ".exs", ".sql", ".asm", ".s", ".mm"};
-
-constexpr std::array<std::string_view, 6> kSkip{"node_modules", "target", "vendor",
-                                                "dist", "build", ".git"};
-
-std::string lower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return s;
-}
-
-std::string basename_of(std::string_view p) {
-    const auto slash = p.find_last_of('/');
-    return std::string(slash == std::string_view::npos ? p : p.substr(slash + 1));
-}
-
-bool is_source(std::string_view path) {
-    const auto dot = path.find_last_of('.');
-    if (dot == std::string_view::npos) return false;
-    const std::string ext = lower(std::string(path.substr(dot)));
-    return std::find(kCode.begin(), kCode.end(), ext) != kCode.end();
-}
-
-bool in_skipped_dir(std::string_view path) {
-    std::size_t start = 0;
-    while (start <= path.size()) {
-        const auto end = path.find('/', start);
-        const auto seg = path.substr(start, end == std::string_view::npos ? end : end - start);
-        if (std::find(kSkip.begin(), kSkip.end(), seg) != kSkip.end()) return true;
-        if (end == std::string_view::npos) break;
-        start = end + 1;
-    }
-    return false;
-}
 
 int line_count(std::string_view s) {
     int n = 0;
@@ -150,7 +111,7 @@ std::optional<Grant> override_of(std::string_view text) {
 
 std::string advice(std::string_view path, int n) {
     const int suggest = std::min(n + 40, kMaxOverride);
-    return basename_of(path) + " is " + std::to_string(n) + " lines; the limit is " +
+    return metal::basename_of(path) + " is " + std::to_string(n) + " lines; the limit is " +
            std::to_string(kLimit) +
            ". Split it now, before anything else.\nMake a directory named after the file, give "
            "each concern its own file, re-export from one entry point (C++ header, C header, TS "
@@ -160,29 +121,11 @@ std::string advice(std::string_view path, int n) {
 }
 
 std::string nudge(std::string_view path, int n) {
-    return basename_of(path) + " is " + std::to_string(n) + " lines, " +
+    return metal::basename_of(path) + " is " + std::to_string(n) + " lines, " +
            std::to_string(kLimit - n) +
            " from the limit. Find the seam now while there is still slack - parse/emit/state/io. "
            "Splitting at 301 means cutting wherever you happen to be, which is how one coherent "
            "file becomes two incoherent ones.";
-}
-
-std::string payload(std::string_view event, std::string_view field, std::string_view body,
-                    std::string_view decision = {}) {
-    std::string out = "{\"hookSpecificOutput\":{\"hookEventName\":\"";
-    out += event;
-    out += "\",";
-    if (!decision.empty()) {
-        out += "\"permissionDecision\":\"";
-        out += decision;
-        out += "\",";
-    }
-    out += "\"";
-    out += field;
-    out += "\":\"";
-    out += hj::esc(body);
-    out += "\"}}";
-    return out;
 }
 
 }  // namespace
@@ -190,14 +133,16 @@ std::string payload(std::string_view event, std::string_view field, std::string_
 // Returns the hook's stdout payload, or nullopt to stay quiet.
 std::optional<std::string> check(std::string_view doc) {
     const auto path = hj::get(doc, "tool_input", "file_path").value_or("");
-    if (path.empty() || !is_source(path) || in_skipped_dir(path)) return std::nullopt;
+    if (path.empty() || !metal::is_source(path) || metal::in_skipped_dir(path)) {
+        return std::nullopt;
+    }
 
     const bool pre = hj::get(doc, "hook_event_name").value_or("") == "PreToolUse";
     std::string text;
     if (pre) {
         text = hj::get(doc, "tool_input", "content").value_or("");
     } else {
-        std::ifstream in(path, std::ios::binary);
+        std::ifstream in(std::string(path), std::ios::binary);
         if (!in) return std::nullopt;
         std::ostringstream buf;
         buf << in.rdbuf();
@@ -211,13 +156,14 @@ std::optional<std::string> check(std::string_view doc) {
     if (n > kLimit) {
         // Creating an oversized file is denied outright; editing one that is already
         // oversized only warns, so a one-line fix to legacy code is not held hostage.
-        return pre ? payload("PreToolUse", "permissionDecisionReason", advice(path, n), "deny")
-                   : payload("PostToolUse", "additionalContext", advice(path, n));
+        return pre ? metal::payload("PreToolUse", "permissionDecisionReason", advice(path, n),
+                                    "deny")
+                   : metal::payload("PostToolUse", "additionalContext", advice(path, n));
     }
     // In the warn band. Advisory on both paths: a fresh 250-line file is the cheapest
     // possible moment to hear it, and PreToolUse can allow while still saying something.
-    return pre ? payload("PreToolUse", "permissionDecisionReason", nudge(path, n), "allow")
-               : payload("PostToolUse", "additionalContext", nudge(path, n));
+    return pre ? metal::payload("PreToolUse", "permissionDecisionReason", nudge(path, n), "allow")
+               : metal::payload("PostToolUse", "additionalContext", nudge(path, n));
 }
 
 #ifdef METAL_SELFTEST
@@ -233,8 +179,18 @@ int main(int argc, char** argv) {
 #endif
     std::ostringstream buf;
     buf << std::cin.rdbuf();
+    const std::string doc = buf.str();
     // Fail open, always: this gates every Write, and a hook that dies must not take the
     // edit with it.
-    if (const auto out = check(buf.str())) std::cout << *out << "\n";
+    if (const auto out = check(doc)) {
+        std::cout << *out << "\n";
+        return 0;
+    }
+    // Rule 3 only on the way out, and only when rule 1 had nothing to say — a hook gets one
+    // payload, and an oversized file is the more urgent of the two. Deferring also means
+    // rule 3 does not burn its one-per-build-file stamp on a message nobody sees.
+    if (hj::get(doc, "hook_event_name").value_or("") == "PostToolUse") {
+        if (const auto out = floor_check(doc)) std::cout << *out << "\n";
+    }
     return 0;
 }

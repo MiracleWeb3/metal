@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/SKILL.md\"; B=\"${XDG_CACHE_HOME:-$HOME/.cache}/metal/split\"; S=\"${CLAUDE_PLUGIN_ROOT}/hooks\"; N=$(ls -t \"$S\"/*.cpp \"$S\"/*.hpp \"$S\"/*.inc 2>/dev/null | head -1); if ! { [ -x \"$B\" ] && [ -n \"$N\" ] && [ ! \"$N\" -nt \"$B\" ]; }; then mkdir -p \"${B%/*}\"; c++ -std=c++20 -O2 -o \"$B\" \"$S/split.cpp\" 2>/dev/null || echo \"metal: no working C++ compiler on PATH, so the 300-line hook is inert this session\"; fi",
-            "timeout": 30,
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/SKILL.md\"; B=\"${XDG_CACHE_HOME:-$HOME/.cache}/metal/split\"; S=\"${CLAUDE_PLUGIN_ROOT}/hooks\"; N=$(ls -t \"$S\"/*.cpp \"$S\"/*.hpp \"$S\"/*.inc 2>/dev/null | head -1); if ! { [ -x \"$B\" ] && [ -n \"$N\" ] && [ ! \"$N\" -nt \"$B\" ]; }; then sh \"${CLAUDE_PLUGIN_ROOT}/build.sh\" \"$B\" || echo \"metal: the hook failed to build (compiler output above) - BOTH RULES ARE INERT this session\"; fi",
+            "timeout": 60,
             "statusMessage": "Loading metal rules..."
           }
         ]

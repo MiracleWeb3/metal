@@ -1,12 +1,22 @@
 {
   "name": "metal",
-  "version": "1.0.0",
-  "description": "Small files, low-level languages. Denies any source file over 300 lines at write time, warns at 220 while there is still room to split well, and defaults every new project to C++ instead of a high-level runtime.",
+  "version": "1.1.0",
+  "description": "Small files, low-level languages, a compiler that refuses. Denies any source file over 300 lines at write time, warns at 220 while there is still room to split well, defaults every new project to C++, and checks that C++ projects actually build with -Wall -Wextra -Werror.",
   "author": {
     "name": "MiracleWeb3",
     "url": "https://github.com/MiracleWeb3"
   },
   "homepage": "https://github.com/MiracleWeb3/metal",
   "license": "MIT",
-  "keywords": ["cpp", "c", "low-level", "determinism", "file-size", "architecture"]
+  "keywords": [
+    "cpp",
+    "c",
+    "low-level",
+    "determinism",
+    "file-size",
+    "architecture",
+    "werror",
+    "sanitizers",
+    "build-flags"
+  ]
 }

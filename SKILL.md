@@ -5,7 +5,7 @@ description: Small files, low-level languages. Use on every coding task — when
 
 # metal
 
-Two rules. Active every response, in this session and in every subagent.
+Three rules. Active every response, in this session and in every subagent.
 
 ## 1. No large files
 
@@ -38,7 +38,7 @@ A deterministic language pins down what the machine actually does. High-level ru
 
 1. **C++ — the default.** Every new project, tool, service, core, or extension module starts here unless something below applies. Direct memory control, no GC, no runtime between the code and the machine, and the mature library for nearly any domain is already C++. It compiles everywhere, binds to everything (pybind11, C ABI, FFI), and nothing is hidden from you.
 
-   Modern C++ only (17/20+): RAII, smart pointers, `span`/`string_view`, no raw `new`/`delete`. Discipline comes from style, not from the compiler refusing.
+   Modern C++ only (17/20+): RAII, smart pointers, `span`/`string_view`, no raw `new`/`delete`. Rule 3 is what keeps that honest.
 
    Especially where its ecosystem *is* the ecosystem: GPU/compute (CUDA, HIP/ROCm, SYCL, OpenCL), numerics/HPC (Eigen, BLAS/LAPACK, MKL, OpenMP), graphics/games/audio (Unreal, engine SDKs, JUCE, VST3), vision/robotics (OpenCV, ROS, PCL), native GUI (Qt), and graphs or trees with genuine shared or cyclic ownership.
 
@@ -62,3 +62,18 @@ Rules of engagement:
 - Existing high-level codebase → never rewrite unprompted. Propose the low-level lane where the pain is determinism: parsers, protocols, state machines, concurrency, hot paths.
 - A low-level core that ships but is never built, installed, or called is worth less than the high-level code it replaced. Wire it to a caller and make its absence a hard error, never a silent fallback.
 - Fewer dependencies. A library you have not read is a runtime you cannot predict.
+
+## 3. The compiler refuses
+
+C++ is chosen for control, and the compiler is the instrument of it — so it is switched on, not left to taste. This is the one thing on the list that no interpreted language can offer.
+
+**The floor, on every C++ project:**
+
+```
+-std=c++20 -Wall -Wextra -Werror
+debug: -fsanitize=address,undefined -D_GLIBCXX_ASSERTIONS
+```
+
+A hook reads the nearest `build.sh` / `CMakeLists.txt` / `Makefile` when you write C or C++, and names any missing flag. `-Werror` is the one that matters: **a warning you are allowed to ignore is a bug that compiles.** `c++20` is a minimum, not an equality — later standards pass.
+
+Setting up a new C++ project means writing that build file first, with the floor in it. It is not a later step; without it the language has been chosen and its main advantage left switched off.
