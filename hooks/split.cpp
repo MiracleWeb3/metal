@@ -36,6 +36,21 @@ constexpr int kWarn = 220;          // advisory only; ~8% of real files, all wit
 constexpr int kMaxOverride = 600;   // bounded: an exception that can name any size is a repeal
 constexpr std::size_t kMinReason = 20;  // "because" is not a reason
 
+// A suite has no parse/emit/state seam to cut along — only "cases 1-40" and "cases 41-80",
+// which is the arbitrary line the rule exists to prevent. Looser, not exempt: 900 lines of
+// tests is still a smell, it is just not a 301-line one. See metal::is_test.
+constexpr int kTestLimit = 500;
+constexpr int kTestWarn = 400;
+
+struct Limits {
+    int limit;
+    int warn;
+};
+
+Limits limits_for(std::string_view path) {
+    return metal::is_test(path) ? Limits{kTestLimit, kTestWarn} : Limits{kLimit, kWarn};
+}
+
 int line_count(std::string_view s) {
     int n = 0;
     for (const char c : s) {
@@ -109,10 +124,20 @@ std::optional<Grant> override_of(std::string_view text) {
     return std::nullopt;
 }
 
-std::string advice(std::string_view path, int n) {
+std::string advice(std::string_view path, int n, Limits lim) {
     const int suggest = std::min(n + 40, kMaxOverride);
+    if (lim.limit == kTestLimit) {
+        // Different advice, because "find the parse/emit seam" is not answerable here.
+        return metal::basename_of(path) + " is " + std::to_string(n) +
+               " lines; the limit for test files is " + std::to_string(lim.limit) +
+               ".\nSuites get a looser ceiling because a list of cases has no seam to cut along "
+               "- but this one is past it. Split by what is under test, one file per unit or "
+               "per behaviour, not by case number.\nIf it genuinely is one table of cases, say "
+               "so in it and why:\n  // metal: allow " +
+               std::to_string(suggest) + " - <what makes it one unit>";
+    }
     return metal::basename_of(path) + " is " + std::to_string(n) + " lines; the limit is " +
-           std::to_string(kLimit) +
+           std::to_string(lim.limit) +
            ". Split it now, before anything else.\nMake a directory named after the file, give "
            "each concern its own file, re-export from one entry point (C++ header, C header, TS "
            "index). Cut along seams that already exist - parse/emit/state/io - not at an arbitrary "
@@ -120,9 +145,15 @@ std::string advice(std::string_view path, int n) {
            std::to_string(suggest) + " - <what makes it one unit>";
 }
 
-std::string nudge(std::string_view path, int n) {
+std::string nudge(std::string_view path, int n, Limits lim) {
+    if (lim.limit == kTestLimit) {
+        return metal::basename_of(path) + " is " + std::to_string(n) + " lines, " +
+               std::to_string(lim.limit - n) +
+               " from the test-file limit. Start grouping by what is under test while there is "
+               "still slack.";
+    }
     return metal::basename_of(path) + " is " + std::to_string(n) + " lines, " +
-           std::to_string(kLimit - n) +
+           std::to_string(lim.limit - n) +
            " from the limit. Find the seam now while there is still slack - parse/emit/state/io. "
            "Splitting at 301 means cutting wherever you happen to be, which is how one coherent "
            "file becomes two incoherent ones.";
@@ -149,21 +180,24 @@ std::optional<std::string> check(std::string_view doc) {
         text = buf.str();
     }
     const int n = line_count(text);
+    const Limits lim = limits_for(path);
 
     if (const auto grant = override_of(text); grant && n <= grant->allowance) return std::nullopt;
-    if (n <= kWarn) return std::nullopt;
+    if (n <= lim.warn) return std::nullopt;
 
-    if (n > kLimit) {
+    if (n > lim.limit) {
         // Creating an oversized file is denied outright; editing one that is already
         // oversized only warns, so a one-line fix to legacy code is not held hostage.
-        return pre ? metal::payload("PreToolUse", "permissionDecisionReason", advice(path, n),
+        return pre ? metal::payload("PreToolUse", "permissionDecisionReason", advice(path, n, lim),
                                     "deny")
-                   : metal::payload("PostToolUse", "additionalContext", advice(path, n));
+                   : metal::payload("PostToolUse", "additionalContext", advice(path, n, lim));
     }
     // In the warn band. Advisory on both paths: a fresh 250-line file is the cheapest
     // possible moment to hear it, and PreToolUse can allow while still saying something.
-    return pre ? metal::payload("PreToolUse", "permissionDecisionReason", nudge(path, n), "allow")
-               : metal::payload("PostToolUse", "additionalContext", nudge(path, n));
+    return pre
+               ? metal::payload("PreToolUse", "permissionDecisionReason", nudge(path, n, lim),
+                                "allow")
+               : metal::payload("PostToolUse", "additionalContext", nudge(path, n, lim));
 }
 
 #ifdef METAL_SELFTEST

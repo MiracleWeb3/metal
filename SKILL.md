@@ -13,6 +13,10 @@ Three rules. Active every response, in this session and in every subagent.
 
 **Advisory at 220.** The hook says something while you still have runway. Act on it then: at 301 you cut wherever you happen to be standing, which is how one coherent file becomes two incoherent ones. Measured on a real tree of 109 files, the ones that reached the ceiling had piled up at 289, 296, 299 — squeezed under it rather than split.
 
+**Test files: 500, advisory at 400.** A suite is a list of cases, not logic that decomposes. The split advice — cut along parse/emit/state/io — has no referent in a test file; the only available cut is "cases 1–40" and "cases 41–80", which is exactly the arbitrary line the rule exists to prevent. Looser, not exempt: 900 lines of tests is still a smell, it is just not a 301-line one, and the deny past 500 says to group by what is under test.
+
+Detected by path, not by guess: a `test/`, `tests/`, `spec/`, `specs/`, `selftest/` or `__tests__/` segment, a `test_`/`test-` prefix, or a `_test.` / `-test.` / `.test.` / `_spec.` / `.spec.` in the name. `latest.cpp` and `contest.c` are not tests.
+
 **The one legal exception.** A genuinely cohesive unit — a lexer, a transition table, a generated parser — may grant itself room, in the file, with a reason:
 
 ```

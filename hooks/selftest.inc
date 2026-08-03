@@ -164,6 +164,31 @@ int selftest() {
     ok(check("not json at all").has_value() == false, "garbage in, silence out");
     ok(check("{}").has_value() == false, "empty event, silence out");
 
+    // Test files get 500/400, because a suite has no parse/emit seam to cut along.
+    ok(pre("/p/src/selftest/offload.cpp", lines(350)).empty(),
+       "350 lines in a selftest/ dir is silence, where 350 in src/ is a deny");
+    ok(has(pre("/p/src/offload.cpp", lines(350)), "\"deny\""),
+       "...and the ordinary limit is untouched by the carve-out");
+    ok(has(pre("/p/tests/big.py", lines(450)), "still slack"),
+       "a test file warns at 400");
+    ok(has(pre("/p/tests/huge.py", lines(550)), "\"deny\""),
+       "and is still denied past 500 - looser, not exempt");
+    ok(has(pre("/p/tests/huge.py", lines(550)), "test files"),
+       "the deny explains the test limit, not the parse/emit seam that does not exist here");
+
+    // Every way a file says it is a test.
+    ok(metal::is_test("/p/selftest/x.cpp"), "selftest/ dir");
+    ok(metal::is_test("/p/tests/x.rs"), "tests/ dir");
+    ok(metal::is_test("/p/__tests__/x.ts"), "__tests__/ dir");
+    ok(metal::is_test("/p/spec/x.rb"), "spec/ dir");
+    ok(metal::is_test("/p/a/test_thing.py"), "test_ prefix");
+    ok(metal::is_test("/p/a/thing_test.go"), "_test. suffix");
+    ok(metal::is_test("/p/a/thing.test.ts"), ".test. infix");
+    ok(metal::is_test("/p/a/thing.spec.js"), ".spec. infix");
+    ok(!metal::is_test("/p/src/latest.cpp"), "'latest' is not a test");
+    ok(!metal::is_test("/p/src/contest.c"), "nor 'contest'");
+    ok(!metal::is_test("/p/protests/x.c"), "nor a dir merely containing 'test'");
+
     // rules 2 and 3, against real files on disk
     setenv("METAL_NO_STAMP", "1", 1);  // the stamp is a throttle, not behaviour under test
     rule2(tfs::current_path() / ".metal-selftest-2");

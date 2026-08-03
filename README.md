@@ -16,7 +16,7 @@
 
 <br>
 
-<a href="#does-it-work">Does&nbsp;it&nbsp;work</a> &nbsp;·&nbsp; <a href="#rule-1--no-large-files">Rule&nbsp;1</a> &nbsp;·&nbsp; <a href="#rule-2--choose-the-language-once-on-purpose">Rule&nbsp;2</a> &nbsp;·&nbsp; <a href="#rule-3--the-toolchain-refuses">Rule&nbsp;3</a> &nbsp;·&nbsp; <a href="#install">Install</a> &nbsp;·&nbsp; <a href="#configure">Configure</a> &nbsp;·&nbsp; <a href="#how-it-works">How&nbsp;it&nbsp;works</a>
+<a href="#does-it-work">Does&nbsp;it&nbsp;work</a> &nbsp;·&nbsp; <a href="#rule-1-no-large-files">Rule&nbsp;1</a> &nbsp;·&nbsp; <a href="#rule-2-choose-the-language-once-on-purpose">Rule&nbsp;2</a> &nbsp;·&nbsp; <a href="#rule-3-the-toolchain-refuses">Rule&nbsp;3</a> &nbsp;·&nbsp; <a href="#install">Install</a> &nbsp;·&nbsp; <a href="#configure">Configure</a> &nbsp;·&nbsp; <a href="#how-it-works">How&nbsp;it&nbsp;works</a>
 
 <br>
 
@@ -81,7 +81,7 @@ Rules 1 and 3 are worth installing whatever you write. Rule 2 has an opinion —
 
 <br>
 
-## Rule 1 &nbsp;·&nbsp; No large files
+## Rule 1: No large files
 
 **300 lines. Hard limit. 220 lines, advisory.**
 
@@ -122,11 +122,15 @@ It also stays out of the way of things that aren't source: `.md`, `.json`, data 
 
 <br>
 
-## Rule 2 &nbsp;·&nbsp; Choose the language once, on purpose
+## Rule 2: Choose the language once, on purpose
 
 New code starts at the lowest level that fits the problem — and the reason is specific to *generated* code.
 
-A deterministic language pins down what the machine actually does. High-level runtimes hide GC pauses, dynamic dispatch, implicit allocation and silent coercion: exactly the invisible state that makes a generated program unpredictable. The counterintuitive part is that prompting into a low-level language buys **more** control over the result than prompting into a high-level one, even though the code is harder to write by hand — because difficulty of authorship stops being the deciding cost when you are not the one typing. What is left is how much of the machine's behaviour the source actually specifies, and there C and C++ specify far more than Python does.
+A deterministic language pins down what the machine actually does. High-level runtimes hide GC pauses, dynamic dispatch, implicit allocation and silent coercion: exactly the invisible state that makes a generated program unpredictable.
+
+The counterintuitive part is that prompting into a low-level language buys **more** control over the result than prompting into a high-level one, even though the code is harder to write by hand. Difficulty of authorship stops being the deciding cost when you are not the one typing.
+
+What is left is how much of the machine's behaviour the source actually specifies. There, C and C++ specify far more than Python does.
 
 This hook is itself the argument: it used to be Python, and a plugin that recommends C++ has no business being enforced by an interpreter.
 
@@ -136,7 +140,9 @@ This hook is itself the argument: it used to be Python, and a plugin that recomm
 | **2** | **C** | Freestanding, embedded, tiny binaries, a stable ABI, or existing C to interop with. |
 | **3** | **Assembly** | Only for a hot path measured hot, or an instruction the compiler will not emit. |
 
-**Assembly is not "talking to hardware."** Memory-mapped registers, volatile pointers, peripherals, DMA — that is C's job, and C does it readably and portably. Assembly earns its rung in two narrower cases: a hot path you *measured* hot, and a specific instruction the compiler will not emit for you — reset vectors, interrupt prologues, context switching, a particular SIMD or atomic. Reach for it for what C cannot express, or what C expresses too slowly and you have the number to prove it.
+**Assembly is not "talking to hardware."** Memory-mapped registers, volatile pointers, peripherals, DMA — that is C's job, and C does it readably and portably.
+
+Assembly earns its rung in two narrower cases: a hot path you *measured* hot, and a specific instruction the compiler will not emit for you (reset vectors, interrupt prologues, context switching, a particular SIMD or atomic). Reach for it for what C cannot express, or what C expresses too slowly and you have the number to prove it.
 
 **Having chosen the level, use it.** C++ written like Python with semicolons pays the whole authorship cost and collects none of the control — the only way this choice is genuinely wrong.
 
@@ -191,7 +197,7 @@ Measured across 30 days of real transcripts: **16 such moments, 0.53/day** — r
 
 <br>
 
-## Rule 3 &nbsp;·&nbsp; The toolchain refuses
+## Rule 3: The toolchain refuses
 
 Every ecosystem ships a strict mode. Almost nobody turns it on — and a language chosen for its guarantees, run without them, is the worst of both.
 

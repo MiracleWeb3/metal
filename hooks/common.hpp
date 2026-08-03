@@ -69,6 +69,37 @@ inline bool in_skipped_dir(std::string_view path) {
     return false;
 }
 
+// A test file is a list of cases, not logic that decomposes. The split advice — "cut along
+// seams that already exist, parse/emit/state/io" — has no referent in a suite: the only
+// available cut is "cases 1-40" and "cases 41-80", which is the arbitrary line the rule
+// exists to prevent. So suites get their own, looser ceiling rather than an exemption; a
+// 900-line suite is still a real smell, just not a 301-line one.
+//
+// Measured on the tree that raised this: 74 authored files, median 83 lines, 51% under 100,
+// and only five over 250. The cap was binding on exactly two files — one that genuinely was
+// three files sharing a name, and one test suite that had grown 60 lines per review round
+// while doing nothing wrong.
+inline bool is_test(std::string_view path) {
+    const std::string base = lower(basename_of(path));
+    if (base.rfind("test_", 0) == 0 || base.rfind("test-", 0) == 0) return true;
+    for (const std::string_view mark :
+         {"_test.", "-test.", ".test.", "_spec.", "-spec.", ".spec."}) {
+        if (base.find(mark) != std::string::npos) return true;
+    }
+    std::size_t start = 0;
+    while (start <= path.size()) {
+        const auto end = path.find('/', start);
+        const auto seg = path.substr(start, end == std::string_view::npos ? end : end - start);
+        if (seg == "test" || seg == "tests" || seg == "spec" || seg == "specs" ||
+            seg == "selftest" || seg == "selftests" || seg == "__tests__") {
+            return true;
+        }
+        if (end == std::string_view::npos) break;
+        start = end + 1;
+    }
+    return false;
+}
+
 // SKILL.md's escape (a) — one-shot glue that never enters a repo — made mechanical.
 // Measured: of 207 candidate firings for an earlier version of rule 3, 139 were scratchpad
 // noise. A check that is wrong two times in three is one you learn to route around.
