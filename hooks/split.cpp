@@ -28,6 +28,7 @@
 #include <string_view>
 
 #include "common.hpp"
+#include "denials.hpp"
 
 namespace {
 
@@ -124,6 +125,26 @@ std::optional<Grant> override_of(std::string_view text) {
     return std::nullopt;
 }
 
+// The same refusal, told to someone who has already heard it. `streak` is how many times
+// this exact path was denied today. Measured: one file was retried whole 32 times in a
+// single session, unchanged, against an unchanging message.
+std::string repeat_advice(std::string_view path, int n, int streak) {
+    const std::string base = metal::basename_of(path);
+    const std::string dir = base.substr(0, base.find_last_of('.'));
+    if (streak == 1) {
+        return base + " is still " + std::to_string(n) +
+               " lines. The split has to happen before this write lands, not after.\nWriting "
+               "the same file again will be refused again.";
+    }
+    return base + " has been refused " + std::to_string(streak + 1) +
+           " times today, at roughly this size every time. It will not be accepted whole at "
+           "any point.\nTwo ways forward, both of which end this loop:\n  - the file already "
+           "exists and you only need part of it changed -> use Edit, not Write\n  - it "
+           "genuinely needs to be this much code -> create " + dir +
+           "/ and write the pieces as separate files, then a small entry point that "
+           "re-exports them\nRetrying the whole write is not one of them.";
+}
+
 std::string advice(std::string_view path, int n, Limits lim) {
     const int suggest = std::min(n + 40, kMaxOverride);
     if (lim.limit == kTestLimit) {
@@ -188,9 +209,15 @@ std::optional<std::string> check(std::string_view doc) {
     if (n > lim.limit) {
         // Creating an oversized file is denied outright; editing one that is already
         // oversized only warns, so a one-line fix to legacy code is not held hostage.
-        return pre ? metal::payload("PreToolUse", "permissionDecisionReason", advice(path, n, lim),
-                                    "deny")
-                   : metal::payload("PostToolUse", "additionalContext", advice(path, n, lim));
+        if (!pre) return metal::payload("PostToolUse", "additionalContext", advice(path, n, lim));
+        // A refusal that has already been ignored says something else. The count is written
+        // only on the deny path, so a file that is split, or simply left alone, stops
+        // accumulating one.
+        const int streak = metal::deny_streak(path);
+        metal::record_deny(path);
+        const std::string body =
+            streak == 0 ? advice(path, n, lim) : repeat_advice(path, n, streak);
+        return metal::payload("PreToolUse", "permissionDecisionReason", body, "deny");
     }
     // In the warn band. Advisory on both paths: a fresh 250-line file is the cheapest
     // possible moment to hear it, and PreToolUse can allow while still saying something.

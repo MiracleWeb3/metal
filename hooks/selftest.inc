@@ -123,6 +123,11 @@ int rule2(const tfs::path& root) {
 }
 
 int selftest() {
+    // Rule 1's message assertions call pre() repeatedly on the same path, which is
+    // exactly what the deny streak escalates on. The streak has its own block below that
+    // opts back in; everything else wants the first-refusal text.
+    setenv("METAL_NO_STAMP", "1", 1);
+
     const std::string big = lines(400), mid = lines(250), small = lines(10);
 
     // the hard limit, unchanged
@@ -175,6 +180,41 @@ int selftest() {
        "and is still denied past 500 - looser, not exempt");
     ok(has(pre("/p/tests/huge.py", lines(550)), "test files"),
        "the deny explains the test limit, not the parse/emit seam that does not exist here");
+
+    // Escalation. Measured motivation: one file drew 96 denials across 6 sessions, 32 in a
+    // single session, every attempt 5,531-5,698 lines against an unchanging message.
+    {
+        const std::string first = repeat_advice("/p/src/web_dashboard.py", 5500, 1);
+        const std::string later = repeat_advice("/p/src/web_dashboard.py", 5500, 4);
+        ok(has(first, "still 5500 lines"), "the second refusal restates the size, briefly");
+        ok(!has(first, "Make a directory named after the file"),
+           "and drops the full split lecture it already gave once");
+        ok(has(later, "refused 5 times today"), "the fifth counts out loud");
+        ok(has(later, "use Edit, not Write"),
+           "and names the way out the first message never mentions");
+        ok(has(later, "web_dashboard/"), "including the directory to create, by name");
+        ok(first != later, "the second and fifth refusals are not the same text");
+    }
+
+    // The streak is per path, expires, and never fires on a first denial.
+    unsetenv("METAL_NO_STAMP");  // the streak is the behaviour under test here
+    {
+        const char* p1 = "/p/streak_a.py";
+        const char* p2 = "/p/streak_b.py";
+        metal::sfs::remove(metal::deny_record_for(p1));
+        metal::sfs::remove(metal::deny_record_for(p2));
+        ok(metal::deny_streak(p1) == 0, "a path never denied has no streak");
+        metal::record_deny(p1);
+        ok(metal::deny_streak(p1) == 1, "recording a denial counts it");
+        ok(metal::deny_streak(p2) == 0, "and does not leak onto another file");
+        metal::record_deny(p1);
+        ok(metal::deny_streak(p1) == 2, "a second denial accumulates");
+        // A record older than the window is not a grudge.
+        std::ofstream(metal::deny_record_for(p1), std::ios::binary) << "9 1";
+        ok(metal::deny_streak(p1) == 0, "a streak from last month has expired");
+        metal::sfs::remove(metal::deny_record_for(p1));
+        setenv("METAL_NO_STAMP", "1", 1);
+    }
 
     // Every way a file says it is a test.
     ok(metal::is_test("/p/selftest/x.cpp"), "selftest/ dir");
